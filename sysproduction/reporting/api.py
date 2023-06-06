@@ -8,7 +8,7 @@ from syscore.dateutils import (
     calculate_start_and_end_dates,
     get_date_from_period_and_end_date,
 )
-from syscore.constants import arg_not_supplied
+from syscore.constants import missing_data, arg_not_supplied
 from sysobjects.production.roll_state import ALL_ROLL_INSTRUMENTS
 from syscore.pandas.pdutils import top_and_tail
 from sysdata.data_blob import dataBlob
@@ -115,7 +115,7 @@ class reportingApi(object):
         start_date = self.start_date
         end_date = self.end_date
         std_header = header(
-            "%s produced on %s from %s to %s"
+            "%s report produced on %s from %s to %s"
             % (
                 report_name,
                 datetime.datetime.now().strftime(REPORT_DATETIME_FORMAT),
@@ -128,8 +128,7 @@ class reportingApi(object):
 
     def terse_header(self, report_name: str):
         terse_header = header(
-            "%s produced on %s"
-            % (report_name, datetime.datetime.now().strftime(REPORT_DATETIME_FORMAT))
+            "%s report produced on %s" % (report_name, str(datetime.datetime.now()))
         )
 
         return terse_header
@@ -219,29 +218,14 @@ class reportingApi(object):
 
     def get_market_moves_object(self) -> marketMovers:
         key = "_market_moves"
-        try:
-            stored_market_moves = getattr(self, key)
-        except AttributeError:
+        stored_market_moves = getattr(self, key, missing_data)
+        if stored_market_moves is missing_data:
             stored_market_moves = marketMovers(self.data)
             setattr(self, key, stored_market_moves)
 
         return stored_market_moves
 
     ## MARKETS TO REMOVE
-    def body_text_all_recommended_bad_markets_clean_slate(self) -> body_text:
-        remove_market_data = self.remove_market_data()
-
-        return body_text(
-            remove_market_data.str_all_recommended_bad_markets_clean_slate_in_yaml_form
-        )
-
-    def body_text_all_recommended_bad_markets(self) -> body_text:
-        remove_market_data = self.remove_market_data()
-
-        return body_text(
-            remove_market_data.str_all_recommended_bad_markets_in_yaml_form
-        )
-
     def body_text_existing_markets_remove(self) -> body_text:
         remove_market_data = self.remove_market_data()
 
@@ -278,11 +262,10 @@ class reportingApi(object):
         return body_text(remove_market_data.str_explain_safety)
 
     def remove_market_data(self) -> RemoveMarketData:
-        try:
-            remove_market_data = getattr(self, "_remove_market_data")
-        except AttributeError:
+        remove_market_data = getattr(self, "_remove_market_data", missing_data)
+        if remove_market_data is missing_data:
             remove_market_data = self._get_remove_market_data()
-            setattr(self, "_remove_market_data", remove_market_data)
+            self._remove_market_data = remove_market_data
 
         return remove_market_data
 
@@ -300,17 +283,14 @@ class reportingApi(object):
         return output_body_text
 
     def list_of_duplicate_market_tables(self) -> list:
-        try:
-            list_of_duplicate_market_tables = getattr(
-                self, "_list_of_duplicate_market_tables"
-            )
-        except AttributeError:
+        list_of_duplicate_market_tables = getattr(
+            self, "_list_of_duplicate_market_tables", missing_data
+        )
+        if list_of_duplicate_market_tables is missing_data:
             list_of_duplicate_market_tables = (
                 self._get_list_of_duplicate_market_tables()
             )
-        setattr(
-            self, "_list_of_duplicate_market_tables", list_of_duplicate_market_tables
-        )
+            self._list_of_duplicate_market_tables = list_of_duplicate_market_tables
 
         return list_of_duplicate_market_tables
 
@@ -360,20 +340,13 @@ class reportingApi(object):
         return total_for_futures
 
     def pandl_for_instruments_across_strategies(self) -> pd.DataFrame:
-        try:
-            pandl_for_instruments_across_strategies = getattr(
-                self,
-                "_pandl_for_instruments_across_strategies",
-            )
-        except AttributeError:
+        pandl_for_instruments_across_strategies = getattr(
+            self, "_pandl_for_instruments_across_strategies", missing_data
+        )
+        if pandl_for_instruments_across_strategies is missing_data:
             pandl_for_instruments_across_strategies = (
-                self._get_pandl_for_instruments_across_strategies()
-            )
-            setattr(
-                self,
-                "_pandl_for_instruments_across_strategies",
-                pandl_for_instruments_across_strategies,
-            )
+                self._pandl_for_instruments_across_strategies
+            ) = self._get_pandl_for_instruments_across_strategies()
 
         return pandl_for_instruments_across_strategies
 
@@ -386,11 +359,11 @@ class reportingApi(object):
         return pandl_for_instruments_across_strategies_df
 
     def total_capital_pandl(self) -> float:
-        try:
-            total_capital_pandl = getattr(self, "_total_capital_pandl")
-        except AttributeError:
-            total_capital_pandl = self._get_total_capital_pandl()
-            setattr(self, "_total_capital_pandl", total_capital_pandl)
+        total_capital_pandl = getattr(self, "_total_capital_pandl", missing_data)
+        if total_capital_pandl is missing_data:
+            total_capital_pandl = (
+                self._total_capital_pandl
+            ) = self._get_total_capital_pandl()
 
         return total_capital_pandl
 
@@ -421,11 +394,9 @@ class reportingApi(object):
 
     @property
     def pandl_calculator(self) -> pandlCalculateAndStore:
-        try:
-            pandl_calculator = getattr(self, "_pandl_calculator")
-        except AttributeError:
-            pandl_calculator = self._get_pandl_calculator()
-            setattr(self, "_pandl_calculator", pandl_calculator)
+        pandl_calculator = getattr(self, "_pandl_calculator", missing_data)
+        if pandl_calculator is missing_data:
+            pandl_calculator = self._pandl_calculator = self._get_pandl_calculator()
 
         return pandl_calculator
 
@@ -566,7 +537,7 @@ class reportingApi(object):
         return table_result
 
     def _roll_data_as_pd(self, instrument_code: str = ALL_ROLL_INSTRUMENTS):
-        roll_data_dict = self.roll_data_dict_for_instrument_code(instrument_code)
+        roll_data_dict = self.roll_data_dict(instrument_code)
 
         result_pd = pd.DataFrame.from_dict(roll_data_dict, orient="index")
 
@@ -574,21 +545,14 @@ class reportingApi(object):
 
         return result_pd
 
-    def roll_data_dict_for_instrument_code(
-        self, instrument_code: str = ALL_ROLL_INSTRUMENTS
-    ):
-        roll_data_dict = self.roll_data_dict
+    def roll_data_dict(self, instrument_code: str = ALL_ROLL_INSTRUMENTS):
+        return self.cache.get(self._get_roll_data_dict, instrument_code)
+
+    def _get_roll_data_dict(self, instrument_code: str = ALL_ROLL_INSTRUMENTS):
         if instrument_code is ALL_ROLL_INSTRUMENTS:
-            return roll_data_dict
+            list_of_instruments = self._list_of_all_instruments()
         else:
-            return {instrument_code: roll_data_dict[instrument_code]}
-
-    @property
-    def roll_data_dict(self):
-        return self.cache.get(self._get_roll_data_dict)
-
-    def _get_roll_data_dict(self):
-        list_of_instruments = self._list_of_all_instruments()
+            list_of_instruments = [instrument_code]
         data = self.data
 
         roll_data_dict = {}
@@ -712,21 +676,21 @@ class reportingApi(object):
 
         return beta_load_by_asset_class_table
 
-    def table_of_portfolio_beta_loadings_by_asset_class(self):
+    def table_of_portfolio_beta_corr_loadings_by_asset_class(self):
         portfolio_risk_object = self.portfolio_risks
-        portfolio_beta_load_by_asset_class = (
-            portfolio_risk_object.get_portfolio_beta_loadings_by_asset_class()
+        portfolio_beta_corr_load_by_asset_class = (
+            portfolio_risk_object.get_portfolio_beta_corr_loadings_by_asset_class()
         )
-        portfolio_beta_load_by_asset_class = portfolio_beta_load_by_asset_class.round(2)
-        portfolio_beta_load_by_asset_class = (
-            portfolio_beta_load_by_asset_class.sort_values()
+        portfolio_beta_corr_load_by_asset_class = portfolio_beta_corr_load_by_asset_class.transpose().round(2)
+        portfolio_beta_corr_load_by_asset_class = (
+            portfolio_beta_corr_load_by_asset_class.sort_values(by=['beta','correlation'])
         )
-        portfolio_beta_load_by_asset_class_table = table(
-            "Beta loadings of full portfolio positions on asset class",
-            portfolio_beta_load_by_asset_class,
+        portfolio_beta_corr_load_by_asset_class_table = table(
+            "Beta loadings and correlations of full portfolio positions on asset class",
+            portfolio_beta_corr_load_by_asset_class,
         )
 
-        return portfolio_beta_load_by_asset_class_table
+        return portfolio_beta_corr_load_by_asset_class_table
 
     @property
     def portfolio_risks(self) -> portfolioRisks:
@@ -769,11 +733,9 @@ class reportingApi(object):
         return get_margin_usage(self.data)
 
     def instrument_risk_data(self):
-        try:
-            instrument_risk = getattr(self, "_instrument_risk")
-        except AttributeError:
-            instrument_risk = self._get_instrument_risk()
-            setattr(self, "_instrument_risk", instrument_risk)
+        instrument_risk = getattr(self, "_instrument_risk", missing_data)
+        if instrument_risk is missing_data:
+            instrument_risk = self._instrument_risk = self._get_instrument_risk()
 
         return instrument_risk
 
@@ -782,11 +744,13 @@ class reportingApi(object):
         return instrument_risk_data
 
     def instrument_risk_data_all_instruments(self) -> pd.DataFrame:
-        try:
-            instrument_risk_all = getattr(self, "_instrument_risk_all_instruments")
-        except AttributeError:
-            instrument_risk_all = self._get_instrument_risk_all_instruments()
-            setattr(self, "_instrument_risk_all_instruments", instrument_risk_all)
+        instrument_risk_all = getattr(
+            self, "_instrument_risk_all_instruments", missing_data
+        )
+        if instrument_risk_all is missing_data:
+            instrument_risk_all = (
+                self._instrument_risk_all_instruments
+            ) = self._get_instrument_risk_all_instruments()
 
         return instrument_risk_all
 
@@ -856,11 +820,9 @@ class reportingApi(object):
         return table_liquidity
 
     def liquidity_data(self) -> pd.DataFrame:
-        try:
-            liquidity = getattr(self, "_liquidity_data")
-        except AttributeError:
-            liquidity = self._get_liquidity_data()
-            setattr(self, "_liquidity_data", liquidity)
+        liquidity = getattr(self, "_liquidity_data", missing_data)
+        if liquidity is missing_data:
+            liquidity = self._liquidity_data = self._get_liquidity_data()
 
         liquidity = nice_format_liquidity_table(liquidity)
         return liquidity
@@ -1042,11 +1004,9 @@ class reportingApi(object):
 
     @property
     def cash_slippage(self) -> pd.DataFrame:
-        try:
-            cash_slippage = getattr(self, "_cash_slippage")
-        except AttributeError:
-            cash_slippage = self._get_cash_slippage()
-            setattr(self, "_cash_slippage", cash_slippage)
+        cash_slippage = getattr(self, "_cash_slippage", missing_data)
+        if cash_slippage is missing_data:
+            cash_slippage = self._cash_slippage = self._get_cash_slippage()
 
         return cash_slippage
 
@@ -1061,11 +1021,9 @@ class reportingApi(object):
 
     @property
     def raw_slippage(self) -> pd.DataFrame:
-        try:
-            raw_slippage = getattr(self, "_raw_slippage")
-        except AttributeError:
-            raw_slippage = self._get_raw_slippage()
-            setattr(self, "_raw_slippage", raw_slippage)
+        raw_slippage = getattr(self, "_raw_slippage", missing_data)
+        if raw_slippage is missing_data:
+            raw_slippage = self._raw_slippage = self._get_raw_slippage()
 
         return raw_slippage
 
@@ -1154,6 +1112,10 @@ def filter_data_for_delays(
 ) -> pd.DataFrame:
 
     max_delay_in_seconds = max_delay_in_days * SECONDS_PER_DAY
+    # ignore missing data
+    data_with_datetime = data_with_datetime[
+        data_with_datetime[datetime_colum] != missing_data
+    ]
     time_delays = datetime.datetime.now() - data_with_datetime[datetime_colum]
     delayed = [
         time_difference.total_seconds() > max_delay_in_seconds
